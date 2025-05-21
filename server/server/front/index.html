@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Chat WebSocket</title>
+  <style>
+
+    /*Vista del chat*/
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to right, #fce4ec, #e1bee7); 
+      padding: 20px;
+      margin: 0;
+      height: 100vh;
+    }
+
+    h2 {
+      color: #6a1b9a;
+    }
+
+    #chat {
+      border: 2px solid #ce93d8;
+      border-radius: 10px;
+      height: 300px;
+      overflow-y: auto;
+      background: #f3e5f5;
+      padding: 10px;
+      box-shadow: 0 0 8px #ba68c8;
+      margin-bottom: 10px;
+    }
+
+    form {
+      display: flex;
+      gap: 10px;
+    }
+
+    #inputMsg {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #ce93d8;
+      border-radius: 5px;
+      background: #f8bbd0;
+      color: #4a148c;
+    }
+
+    #sendBtn {
+      padding: 10px 20px;
+      background: #ba68c8;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background 0.3s;
+    }
+
+    #sendBtn:hover {
+      background: #ab47bc;
+    }
+
+    .message-ws {
+      color: #4a148c;
+      font-weight: bold;
+    }
+
+    .message-tcp {
+      color: #880e4f;
+    }
+
+    .system {
+      font-style: italic;
+      color: #616161;
+    }
+  </style>
+</head>
+<body>
+  <h2>Practica WebSocket</h2>
+  <h6>Domenika Delgado</h6>
+  <h6>Irar Nankamai</h6>
+  <div id="chat"></div>
+  <form id="form">
+    <input id="inputMsg" autocomplete="off" placeholder="Escribe tu mensaje..." />
+    <button id="sendBtn" type="submit">Enviar</button>
+  </form>
+
+  <script>
+    const chat = document.getElementById('chat');
+    const form = document.getElementById('form');
+    const inputMsg = document.getElementById('inputMsg');
+
+    /*Conexion con Websocket*/
+    let clientId = localStorage.getItem('clientId');
+    if (!clientId) {
+      clientId = crypto.randomUUID().slice(0, 8);
+      localStorage.setItem('clientId', clientId);
+    }
+
+    /*Abre una conexion al servidor y envia como parametro*/
+    const socket = new WebSocket(`ws://localhost:8000/?id=${clientId}`);
+
+
+    /*Recepcion de mensajes*/
+    socket.addEventListener('message', (event) => {
+      const msg = event.data;
+
+
+      /*Servidor envia un mensaje*/
+      if (msg.startsWith('@ Conectado como [WS-')) {
+        appendMessage(msg, 'system');
+        return;
+      }
+
+      /*Divide los mensajes si vienen varios al mismo tiempo (TCP) en un solo String*/
+      let messages = msg.split('\n');
+      if (messages.length === 1 && msg.includes('][')) {
+        messages = msg.split(/(?=\[\d+\])/);
+      }
+
+      messages.forEach(singleMsg => {
+        singleMsg = singleMsg.trim();
+        if (!singleMsg) return;
+
+        if (singleMsg.startsWith(`[WS-${clientId}]`)) {
+          appendMessage(singleMsg, 'ws');
+        } else if (singleMsg.startsWith('@')) {
+          appendMessage(singleMsg, 'system');
+        } else {
+          appendMessage(singleMsg, 'tcp');
+        }
+      });
+    });
+
+    /*Conexion Cerrada - Cuando cerramos la conexion*/
+    socket.addEventListener('close', () => {
+      appendMessage(' Conexión cerrada', 'system');
+    });
+
+    /*Envio de mensajes - cuando se envia un submit del formulario, 
+    envia el mensaje por WEbSocket*/
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const text = inputMsg.value.trim();
+      if (text) {
+        socket.send(text);
+        inputMsg.value = '';
+      }
+    });
+
+    /*Mostrar los mensajes*/
+
+    function appendMessage(text, type) {
+      text = text.replace(/\(Web \d+\)\s*/, '');
+      const p = document.createElement('p');
+      p.textContent = text;
+
+      /*Segun el tipo de mensaje, aplica una clase de CSS*/
+      if (type === 'ws') {
+        p.classList.add('message-ws');
+      } else if (type === 'tcp') {
+        p.classList.add('message-tcp');
+      } else if (type === 'system') {
+        p.classList.add('system');
+      }
+
+      chat.appendChild(p);
+      chat.scrollTop = chat.scrollHeight;
+    }
+  </script>
+</body>
+</html>
+
